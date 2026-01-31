@@ -1,6 +1,6 @@
-====================================================================
-                               MonoDash
-====================================================================
+MonoDash
+                               
+
 
 MonoDash is a micro-event–based decentralized betting platform
 running on the Monad testnet. It leverages Monad’s 400ms block time
