@@ -639,7 +639,12 @@
             'function lockEvent(bytes32)',
             'function getEvent(bytes32) view returns (uint40, uint40, uint40, uint8, uint8, address, bytes32, uint8, bytes32)',
             'function isAcceptingBets(bytes32) view returns (bool)',
-            'event EventCreated(bytes32 indexed eventId, uint40 openTime, uint40 closeTime, bytes32 priceFeedId)'
+            'event EventCreated(bytes32 indexed eventId, uint40 openTime, uint40 closeTime, bytes32 priceFeedId)',
+            'error InvalidWindow(uint40)',
+            'error EventNotOpen(bytes32)',
+            'error EventNotLocked(bytes32)',
+            'error EventAlreadyExists(bytes32)',
+            'error BettingWindowClosed(bytes32)'
         ];
 
         const ENGINE_ABI = [
@@ -693,29 +698,14 @@
             demo_fb1: mkDemo('demo_fb1', 'football', 'Can Mbappe score this penalty?', 187, 124),
             demo_fb2: mkDemo('demo_fb2', 'football', 'Will Vinicius get a red card?', 42, 318),
             demo_fb3: mkDemo('demo_fb3', 'football', 'Corner kick goal?', 89, 201),
-            demo_fb4: mkDemo('demo_fb4', 'football', 'Haaland hat-trick this half?', 67, 445),
-            demo_fb5: mkDemo('demo_fb5', 'football', 'Will Salah score from outside the box?', 155, 178),
-            demo_fb6: mkDemo('demo_fb6', 'football', 'Clean sheet for the home team?', 220, 193),
-            demo_fb7: mkDemo('demo_fb7', 'football', 'VAR overturns this decision?', 301, 112),
-            demo_fb8: mkDemo('demo_fb8', 'football', 'Penalty before halftime?', 134, 267),
             // Basketball
             demo_bb1: mkDemo('demo_bb1', 'basketball', 'Will Curry sink both free throws?', 95, 210),
             demo_bb2: mkDemo('demo_bb2', 'basketball', 'LeBron dunk this quarter?', 278, 156),
             demo_bb3: mkDemo('demo_bb3', 'basketball', 'Luka triple-double tonight?', 189, 211),
-            demo_bb4: mkDemo('demo_bb4', 'basketball', '3-pointer at the buzzer?', 56, 344),
-            demo_bb5: mkDemo('demo_bb5', 'basketball', 'Will Giannis block this shot?', 167, 143),
-            demo_bb6: mkDemo('demo_bb6', 'basketball', 'Over 110 points this half?', 245, 198),
-            demo_bb7: mkDemo('demo_bb7', 'basketball', 'Jokic assist to end the play?', 132, 178),
-            demo_bb8: mkDemo('demo_bb8', 'basketball', 'Technical foul this quarter?', 88, 312),
             // Esports
             demo_es1: mkDemo('demo_es1', 'esports', 'Will s1mple clutch this 1v3?', 156, 143),
             demo_es2: mkDemo('demo_es2', 'esports', 'First blood under 2 minutes?', 234, 187),
             demo_es3: mkDemo('demo_es3', 'esports', 'Ace round for T side?', 78, 322),
-            demo_es4: mkDemo('demo_es4', 'esports', 'Baron steal by jungler?', 199, 201),
-            demo_es5: mkDemo('demo_es5', 'esports', 'Faker gets a pentakill?', 45, 455),
-            demo_es6: mkDemo('demo_es6', 'esports', 'Map ends in overtime?', 267, 233),
-            demo_es7: mkDemo('demo_es7', 'esports', 'AWP ace on eco round?', 112, 288),
-            demo_es8: mkDemo('demo_es8', 'esports', 'Dragon soul before 25 min?', 198, 172),
         };
         const demoStart = Math.floor(Date.now() / 1000);
         // Give each demo a random time offset so countdowns don't all sync
@@ -1153,8 +1143,8 @@
             const demoTag = evt.isDemo ? '<span class="live-pulse" style="color:#ff5555;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">&#9679; LIVE</span>' : '';
 
             let actions = '';
-            // OPEN and window active
-            if (evt.status === 1 && now < evt.closeTime) {
+            // OPEN and window active (accepting bets)
+            if (evt.status === 1 && now >= evt.openTime && now < evt.closeTime) {
                 if (!evt.userBet) {
                     const ps = pendingSide[evt.eventId];
                     const yesC = ps === 0 ? ' side-selected' : (ps === 1 ? ' side-dim' : '');
@@ -1170,6 +1160,10 @@
                 } else {
                     actions = `<div class="user-bet-info">Your dash: <b style="color:${evt.userBet.outcome===0?'#00ff3c':'#ff4444'}">${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON</div>`;
                 }
+            }
+            // OPEN but not yet accepting bets
+            else if (evt.status === 1 && now < evt.openTime) {
+                actions = `<div class="user-bet-info" style="color:#888;">Betting window opening soon...</div>`;
             }
             // OPEN but expired
             else if (evt.status === 1 && now >= evt.closeTime) {
@@ -1195,7 +1189,7 @@
                 }
             }
 
-            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` : '';
+            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` + (si.openTime ? ` data-open-time="${si.openTime}"` : '') : '';
             return `<div class="event-item evt-flex" onclick="openEventDetail('${evt.eventId}')" style="cursor:pointer;">
                 <div class="evt-top">
                     <div class="team-info">
@@ -1247,7 +1241,7 @@
                 actions = `<div class="user-bet-info" style="color:#ff4444;">Voided</div>`;
             }
 
-            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` : '';
+            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` + (si.openTime ? ` data-open-time="${si.openTime}"` : '') : '';
             return `<div class="event-item evt-flex" onclick="openEventDetail('${evt.eventId}')" style="cursor:pointer;">
                 <div class="evt-top">
                     <div class="team-info">
@@ -1266,6 +1260,16 @@
         function statusInfo(evt, now) {
             switch(evt.status) {
                 case 1: {
+                    if (now < evt.openTime) {
+                        const rem = evt.openTime - now;
+                        return {
+                            cls: 'badge-open',
+                            label: 'OPENS ' + rem + 's',
+                            countdown: true,
+                            openTime: evt.openTime,
+                            closeTime: evt.closeTime
+                        };
+                    }
                     const rem = evt.closeTime - now;
                     if (rem > 0) {
                         const urgent = rem <= 5;
@@ -1290,19 +1294,27 @@
             const badges = document.querySelectorAll('[data-close-time]');
             const now = Math.floor(Date.now() / 1000);
             badges.forEach(badge => {
+                const open = parseInt(badge.dataset.openTime);
                 const close = parseInt(badge.dataset.closeTime);
-                const rem = close - now;
-                if (rem > 0) {
-                    badge.textContent = 'OPEN ' + rem + 's';
-                    if (rem <= 5) {
-                        badge.classList.add('badge-urgent');
-                    } else {
-                        badge.classList.remove('badge-urgent');
-                    }
-                } else {
-                    badge.textContent = 'OPEN (expired)';
+                if (open && now < open) {
+                    const rem = open - now;
+                    badge.textContent = 'OPENS ' + rem + 's';
                     badge.classList.remove('badge-urgent');
-                    badge.removeAttribute('data-close-time');
+                } else {
+                    const rem = close - now;
+                    if (rem > 0) {
+                        badge.textContent = 'OPEN ' + rem + 's';
+                        if (rem <= 5) {
+                            badge.classList.add('badge-urgent');
+                        } else {
+                            badge.classList.remove('badge-urgent');
+                        }
+                    } else {
+                        badge.textContent = 'OPEN (expired)';
+                        badge.classList.remove('badge-urgent');
+                        badge.removeAttribute('data-close-time');
+                        badge.removeAttribute('data-open-time');
+                    }
                 }
             });
         }, 1000);
@@ -1357,7 +1369,7 @@
             const np = pool > 0n ? (100 - yp) : 50;
 
             // Meta
-            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` : '';
+            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` + (si.openTime ? ` data-open-time="${si.openTime}"` : '') : '';
             let meta = `<div class="modal-meta">
                 <span class="badge ${si.cls}"${badgeAttr}>${si.label}</span>
                 <span>${shortId(evt.eventId)}</span>
@@ -1413,7 +1425,7 @@
             // Actions (same logic as renderUserItem/renderAdminItem combined)
             let actions = '';
             if (currentMode === 'user') {
-                if (evt.status === 1 && now < evt.closeTime) {
+                if (evt.status === 1 && now >= evt.openTime && now < evt.closeTime) {
                     if (!evt.userBet) {
                         const mps = pendingSide[evt.eventId];
                         const myesC = mps === 0 ? ' side-selected' : (mps === 1 ? ' side-dim' : '');
@@ -1429,6 +1441,8 @@
                     } else {
                         actions = `<div class="modal-actions"><div class="user-bet-info" style="text-align:center;">Your dash: <b style="color:${evt.userBet.outcome===0?'#00ff3c':'#ff4444'}">${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON</div></div>`;
                     }
+                } else if (evt.status === 1 && now < evt.openTime) {
+                    actions = `<div class="modal-actions"><div class="user-bet-info" style="text-align:center;color:#888;">Betting window opening soon...</div></div>`;
                 } else if (evt.status === 1 && now >= evt.closeTime && evt.userBet) {
                     actions = `<div class="modal-actions"><div class="user-bet-info" style="text-align:center;">Your dash: <b>${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON (window closed)</div></div>`;
                 } else if (evt.status === 2 && evt.userBet && !evt.userBet.settled) {
@@ -1745,7 +1759,13 @@
 
         function shortErr(e) {
             if (e.reason) return e.reason;
-            if (e.shortMessage) return e.shortMessage;
+            // Dig into nested error (ethers v6 "could not coalesce" wraps the real error)
+            if (e.error) {
+                if (e.error.reason) return e.error.reason;
+                if (e.error.shortMessage) return e.error.shortMessage;
+            }
+            if (e.revert && e.revert.name) return e.revert.name + (e.revert.args?.length ? ': ' + e.revert.args.join(', ') : '');
+            if (e.shortMessage && e.shortMessage !== 'could not coalesce error') return e.shortMessage;
             const m = e.message || String(e);
             const match = m.match(/reason="([^"]+)"/);
             if (match) return match[1];
