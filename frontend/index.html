@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonoDash</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+    <style>
+        /* ---- RESET & CORE ---- */
+        :root {
+            --bg-dark: #282828;
+            --bg-panel: #323232;
+            --bg-header: #126e51;
+            --accent-yellow: #ffdf1b;
+            --text-main: #e4e4e4;
+            --text-muted: #888;
+            --border-color: #444;
+            --success: #00ff3c;
+            --danger: #ff4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-size: 13px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ---- HEADER ---- */
+        header {
+            background-color: var(--bg-header);
+            height: 60px;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #0b4d38;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .brand-area { display: flex; align-items: center; gap: 15px; }
+        .brand-logo-placeholder { display: flex; align-items: center; }
+        .brand-title { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .brand-title span { color: var(--accent-yellow); font-weight: 300; font-size: 14px; margin-left: 2px; opacity: 0.9; }
+
+        .header-controls { display: flex; align-items: center; gap: 15px; }
+
+        #walletBtn {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--accent-yellow);
+            color: var(--accent-yellow);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        #walletBtn:hover { background: rgba(255, 223, 27, 0.1); }
+        #walletBtn.connected {
+            background: var(--accent-yellow);
+            color: #126e51;
+            border-color: var(--accent-yellow);
+        }
+        .status-dot { width: 8px; height: 8px; background: #555; border-radius: 50%; display: inline-block; }
+        #walletBtn.connected .status-dot { background: #126e51; }
+
+        /* ---- MAIN LAYOUT ---- */
+        .main-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            padding: 10px;
+            gap: 10px;
+        }
+
+        /* ---- COLUMNS ---- */
+        .col-left { width: 280px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+        .col-center { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+        .col-right { width: 320px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+
+        /* ---- PANELS (Cards) ---- */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            background: #2a2a2a;
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-title { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #fff; display: flex; align-items: center; gap: 8px; }
+        .panel-title::before { content: ''; width: 3px; height: 12px; background: var(--accent-yellow); display: block; }
+
+        .panel-content { padding: 15px; overflow-y: auto; flex: 1; }
+        .no-padding { padding: 0; }
+
+        /* ---- STATS BAR ---- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .stat-box {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 2px solid var(--border-color);
+        }
+        .stat-label { font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 2px; }
+        .stat-value { font-size: 16px; font-weight: 700; color: #fff; }
+        .stat-box.highlight { border-left-color: var(--accent-yellow); }
+        .stat-box.highlight .stat-value { color: var(--accent-yellow); }
+
+        /* ---- FORMS ---- */
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 11px; color: #bbb; margin-bottom: 4px; }
+        .form-control {
+            width: 100%;
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'Consolas', monospace;
+        }
+        .form-control:focus { border-color: var(--accent-yellow); outline: none; }
+
+        /* ---- BUTTONS ---- */
+        .btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 3px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 11px;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:active { transform: translateY(1px); }
+
+        .btn-primary { background: var(--bg-header); color: #fff; }
+        .btn-yellow { background: var(--accent-yellow); color: #111; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-outline { background: transparent; border: 1px solid #555; color: #ccc; }
+
+        /* ---- EVENT LIST ---- */
+        .event-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #3e3e3e;
+            background: #383838;
+            cursor: default;
+            transition: background 0.2s;
+        }
+        .event-item:hover { background: #404040; }
+
+        .team-info h4 { font-size: 13px; color: #fff; margin-bottom: 4px; }
+        .match-meta { font-size: 11px; color: #999; display: flex; align-items: center; gap: 8px; }
+
+        .badge { padding: 2px 6px; border-radius: 2px; font-size: 10px; font-weight: bold; }
+        .badge-live { background: rgba(0, 255, 60, 0.1); color: var(--success); border: 1px solid rgba(0, 255, 60, 0.3); }
+        .badge-suspended { background: rgba(255, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(255, 68, 68, 0.3); }
+
+        .odds-display {
+            background: #222;
+            color: var(--accent-yellow);
+            padding: 6px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        /* ---- CONSOLE LOG ---- */
+        #consoleLog {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 11px;
+            color: #ccc;
+            height: 100%;
+        }
+        .log-line {
+            padding: 4px 0;
+            border-bottom: 1px solid #383838;
+            display: flex;
+            gap: 8px;
+        }
+        .log-time { color: #666; min-width: 60px; }
+        .log-msg { word-break: break-all; }
+        .log-success { color: var(--success); }
+        .log-warn { color: var(--accent-yellow); }
+        .log-err { color: var(--danger); }
+        .log-sys { color: #4db8ff; }
+
+        /* ---- POOL BAR ---- */
+        .pool-wrapper { margin-top: 8px; width: 100%; height: 4px; background: #222; border-radius: 2px; overflow: hidden; }
+        .pool-fill { height: 100%; background: var(--accent-yellow); width: 0%; transition: width 0.5s ease; }
+
+        /* ======== NEW: MODE TOGGLE ======== */
+        .mode-toggle { display: flex; margin-left: 20px; }
+        .mode-btn {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.5);
+            padding: 5px 14px;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .mode-btn:first-child { border-radius: 3px 0 0 3px; border-right: none; }
+        .mode-btn:last-child { border-radius: 0 3px 3px 0; }
+        .mode-btn.active { background: var(--accent-yellow); color: #111; border-color: var(--accent-yellow); }
+        .mode-btn:hover:not(.active) { background: rgba(255,255,255,0.1); }
+
+        /* ======== NEW: STATUS BADGES ======== */
+        .badge-open { background: rgba(0,255,60,0.1); color: var(--success); border: 1px solid rgba(0,255,60,0.3); transition: all 0.3s; }
+        .badge-urgent { animation: urgentFlash 0.8s ease-in-out infinite; }
+        @keyframes urgentFlash {
+            0%, 100% { background: rgba(255,68,68,0.15); color: #ff4444; border-color: rgba(255,68,68,0.5); }
+            50% { background: rgba(0,255,60,0.1); color: var(--success); border-color: rgba(0,255,60,0.3); }
+        }
+        .badge-locked { background: rgba(255,223,27,0.1); color: var(--accent-yellow); border: 1px solid rgba(255,223,27,0.3); }
+        .badge-settled { background: rgba(100,100,255,0.1); color: #8888ff; border: 1px solid rgba(100,100,255,0.3); }
+        .badge-voided { background: rgba(255,68,68,0.1); color: var(--danger); border: 1px solid rgba(255,68,68,0.3); }
+
+        /* ======== NEW: BET ROW ======== */
+        .bet-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+        .bet-row input {
+            width: 80px; background: #222; border: 1px solid #444; color: #fff;
+            padding: 5px 8px; border-radius: 3px; font-size: 11px; font-family: monospace;
+        }
+        .bet-row input:focus { border-color: var(--accent-yellow); outline: none; }
+        .bet-row select {
+            background: #222; color: #fff; border: 1px solid #444;
+            padding: 5px 8px; border-radius: 3px; font-size: 11px;
+        }
+        .abtn {
+            padding: 5px 12px; border: none; border-radius: 3px;
+            font-weight: 700; cursor: pointer; font-size: 10px;
+            text-transform: uppercase; transition: opacity 0.2s;
+        }
+        .abtn:hover { opacity: 0.85; }
+        .abtn-yes { background: var(--success); color: #111; }
+        .abtn-no { background: var(--danger); color: #fff; }
+        .abtn-claim { background: var(--accent-yellow); color: #111; }
+        .abtn-lock { background: #4db8ff; color: #111; }
+        .abtn-settle { background: var(--accent-yellow); color: #111; }
+        .abtn-void { background: var(--danger); color: #fff; }
+        .abtn-dashit {
+            color: #111; font-size: 11px; font-weight: 800;
+            padding: 6px 18px; letter-spacing: 0.5px;
+            border-radius: 4px; border: none;
+            cursor: pointer; overflow: hidden; position: relative;
+            background: linear-gradient(110deg, var(--accent-yellow) 40%, #fff8b0 50%, var(--accent-yellow) 60%);
+            background-size: 250% 100%;
+            background-position: 100% 0;
+            box-shadow: 0 0 8px rgba(255,223,27,0.4);
+            animation: dashitShine 7s ease-in-out infinite;
+        }
+        .dashit-shake {
+            animation: electricShake 0.35s ease-out 1;
+        }
+        @keyframes electricShake {
+            0%   { transform: translate(0,0); }
+            10%  { transform: translate(-3px, 1px); }
+            20%  { transform: translate(2px, -2px); }
+            30%  { transform: translate(-2px, -1px); }
+            40%  { transform: translate(3px, 2px); }
+            50%  { transform: translate(-1px, -1px); }
+            60%  { transform: translate(2px, 1px); }
+            70%  { transform: translate(-1px, 2px); }
+            80%  { transform: translate(1px, -1px); }
+            100% { transform: translate(0,0); }
+        }
+        @keyframes dashitShine {
+            0%, 70%, 100% { background-position: 100% 0; }
+            35%           { background-position: -50% 0; }
+        }
+        .abtn.side-selected { opacity: 1; }
+        .abtn.side-dim { opacity: 0.3; }
+
+        .evt-flex { display: flex; flex-direction: column; align-items: stretch; }
+        .evt-top { display: flex; justify-content: space-between; align-items: center; }
+        .user-bet-info { margin-top: 6px; font-size: 11px; color: #aaa; }
+
+        /* ======== EVENT DETAIL MODAL ======== */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 100;
+            justify-content: center; align-items: center;
+        }
+        .modal-overlay.open { display: flex; }
+
+        .modal-card {
+            background: #2c2c2c;
+            border: 1px solid #555;
+            border-radius: 8px;
+            width: 520px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+        }
+        .modal-top {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #444;
+            background: #252525;
+            border-radius: 8px 8px 0 0;
+        }
+        .modal-top h3 { font-size: 16px; color: #fff; font-weight: 700; }
+        .modal-close {
+            background: none; border: none; color: #888; font-size: 22px;
+            cursor: pointer; line-height: 1; padding: 0 4px;
+        }
+        .modal-close:hover { color: #fff; }
+
+        .modal-body { padding: 20px; }
+
+        .modal-meta {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 20px; font-size: 12px; color: #aaa;
+        }
+
+        /* Tug-of-war bar */
+        .tug-container { margin-bottom: 20px; }
+        .tug-labels {
+            display: flex; justify-content: space-between;
+            margin-bottom: 6px; font-size: 11px; font-weight: 700;
+        }
+        .tug-labels .yes-label { color: var(--success); }
+        .tug-labels .no-label { color: var(--danger); }
+
+        .tug-bar {
+            width: 100%; height: 44px;
+            background: #1a1a1a;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            position: relative;
+        }
+        .tug-yes {
+            height: 100%;
+            background: linear-gradient(90deg, #00cc30, #00ff3c);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 800; color: #111;
+            transition: width 0.5s ease;
+            min-width: 0;
+        }
+        .tug-no {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #cc2222);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 800; color: #fff;
+            transition: width 0.5s ease;
+            min-width: 0;
+        }
+        .tug-yes span, .tug-no span { white-space: nowrap; overflow: hidden; }
+
+        .tug-amounts {
+            display: flex; justify-content: space-between;
+            margin-top: 6px; font-size: 11px; color: #888;
+        }
+
+        /* Pool stats */
+        .modal-stats {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 10px; margin-bottom: 20px;
+        }
+        .modal-stat {
+            background: #222; border-radius: 4px; padding: 10px;
+            text-align: center; border: 1px solid #3a3a3a;
+        }
+        .modal-stat .ms-label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        .modal-stat .ms-value { font-size: 15px; font-weight: 700; color: #fff; }
+        .modal-stat.yes-stat .ms-value { color: var(--success); }
+        .modal-stat.no-stat .ms-value { color: var(--danger); }
+        .modal-stat.total-stat .ms-value { color: var(--accent-yellow); }
+
+        .modal-actions { padding-top: 10px; border-top: 1px solid #3a3a3a; }
+        .modal-actions .bet-row { margin-top: 0; }
+
+        .modal-winner {
+            text-align: center; padding: 12px;
+            background: rgba(100,100,255,0.08); border-radius: 6px;
+            margin-bottom: 16px; font-size: 13px; font-weight: 700;
+        }
+
+        /* LIVE demo pulse */
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .live-pulse { animation: livePulse 1.2s ease-in-out infinite; }
+
+        /* ======== CATEGORY TABS ======== */
+        .category-tabs {
+            display: flex;
+            gap: 0;
+            background: #2a2a2a;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .category-tab {
+            flex: 1;
+            padding: 9px 12px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #666;
+            cursor: pointer;
+            border: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            background: none;
+        }
+        .category-tab:hover { color: #ccc; background: rgba(255,255,255,0.03); }
+        .category-tab.active { color: var(--accent-yellow); border-bottom-color: var(--accent-yellow); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand-area">
+            <img src="monodashlogo.png" alt="MonoDash" style="height:64px;">
+            <div class="mode-toggle">
+                <button class="mode-btn active" data-mode="user" onclick="setMode('user')">DASH IT!</button>
+                <button class="mode-btn" data-mode="admin" onclick="setMode('admin')">CREATE</button>
+            </div>
+        </div>
+        <div class="header-controls">
+            <div id="connectionStatus" style="font-size:12px; color:#fff; font-weight:600; opacity:0.8;">Not Connected</div>
+            <button id="walletBtn" onclick="connectWallet()">
+                <span class="status-dot"></span>
+                <span class="btn-text">Connect Wallet</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="main-wrapper">
+
+        <!-- LEFT COLUMN -->
+        <div class="col-left">
+            <div class="panel" style="flex: 0 0 auto;">
+                <div class="panel-header"><div class="panel-title">Overvıew</div></div>
+                <div class="panel-content">
+                    <div class="stats-grid">
+                        <div class="stat-box highlight">
+                            <span class="stat-label">BALANCE</span>
+                            <div class="stat-value" id="balanceVal">--</div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">LOCKED</span>
+                            <div class="stat-value" id="lockedVal" style="color:#888">--</div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">EVENTS</span>
+                            <div class="stat-value" id="eventsCount">0</div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">PING</span>
+                            <div class="stat-value" style="color:#888" id="pingVal">-- ms</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User: Vault -->
+            <div class="panel mode-user" style="flex: 1;">
+                <div class="panel-header"><div class="panel-title">Vault</div></div>
+                <div class="panel-content">
+                    <div class="form-group">
+                        <label>Amount (MON)</label>
+                        <input type="number" class="form-control" id="vaultAmount" step="0.1" value="1" min="0">
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:15px;">
+                        <button class="btn btn-primary" onclick="doDeposit()">DEPOSIT</button>
+                        <button class="btn btn-outline" onclick="doWithdraw()">WITHDRAW</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin: Create Event -->
+            <div class="panel mode-admin" style="flex: 1; display:none;">
+                <div class="panel-header"><div class="panel-title">Create Event</div></div>
+                <div class="panel-content">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select class="form-control" id="eventCategory" onchange="updateQuickButtons()">
+                            <option value="football">Football</option>
+                            <option value="basketball">Basketball</option>
+                            <option value="esports">Esports</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Event Tag</label>
+                        <input type="text" class="form-control" id="eventTag" placeholder="Goal?" maxlength="31">
+                    </div>
+                    <div class="form-group">
+                        <label>Window (30-60 sec)</label>
+                        <input type="number" class="form-control" id="eventDuration" value="30" min="30" max="60">
+                    </div>
+                    <div class="form-group">
+                        <label>Outcomes (2-10)</label>
+                        <input type="number" class="form-control" id="eventOutcomes" value="2" min="2" max="10">
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;" id="quickButtons"></div>
+                    <button class="btn btn-yellow" onclick="doCreateEvent()">CREATE EVENT</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER COLUMN -->
+        <div class="col-center">
+            <!-- User: Live Events -->
+            <div class="panel mode-user" style="height: 100%;">
+                <div class="panel-header">
+                    <div class="panel-title">LIVE EVENTS</div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:10px; color:#666; font-family:monospace;" id="eventCount">0 events</span>
+                        <button id="refreshBtn" onclick="doManualRefresh()" style="background:none; border:none; color:#666; cursor:pointer; font-size:16px; line-height:1; padding:2px; transition:color 0.2s;" onmouseover="this.style.color='var(--accent-yellow)'" onmouseout="this.style.color='#666'" title="Refresh events">&#x21bb;</button>
+                    </div>
+                </div>
+                <div class="category-tabs" id="userCatTabs">
+                    <button class="category-tab active" data-cat="football" onclick="selectCategory('football')">Football</button>
+                    <button class="category-tab" data-cat="basketball" onclick="selectCategory('basketball')">Basketball</button>
+                    <button class="category-tab" data-cat="esports" onclick="selectCategory('esports')">Esports</button>
+                </div>
+                <div class="panel-content no-padding" id="userEventFeed">
+                    <div style="padding:30px; color:#555; text-align:center; font-size:12px;">No events yet</div>
+                </div>
+            </div>
+
+            <!-- Admin: Manage Events -->
+            <div class="panel mode-admin" style="height: 100%; display:none;">
+                <div class="panel-header">
+                    <div class="panel-title">Manage Events</div>
+                    <span style="font-size:10px; color:#666; font-family:monospace;" id="adminEventCount">0 events</span>
+                </div>
+                <div class="category-tabs" id="adminCatTabs">
+                    <button class="category-tab active" data-cat="football" onclick="selectCategory('football')">Football</button>
+                    <button class="category-tab" data-cat="basketball" onclick="selectCategory('basketball')">Basketball</button>
+                    <button class="category-tab" data-cat="esports" onclick="selectCategory('esports')">Esports</button>
+                </div>
+                <div class="panel-content no-padding" id="adminEventFeed">
+                    <div style="padding:30px; color:#555; text-align:center; font-size:12px;">No events yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col-right">
+            <div class="panel" style="flex: 1;">
+                <div class="panel-header">
+                    <div class="panel-title">System Console</div>
+                    <button style="background:none; border:none; color:#888; cursor:pointer; font-size:11px;" onclick="document.getElementById('consoleLog').innerHTML=''">Clear</button>
+                </div>
+                <div class="panel-content" style="background:#1a1a1a;">
+                    <div id="consoleLog"></div>
+                </div>
+            </div>
+
+            <div class="panel" style="flex: 0 0 auto;">
+                <div class="panel-header"><div class="panel-title">Actions</div></div>
+                <div class="panel-content">
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-primary" onclick="manualRefresh()">REFRESH</button>
+                        <button class="btn btn-yellow mode-user" onclick="claimAll()">CLAIM ALL</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- EVENT DETAIL MODAL -->
+    <div class="modal-overlay" id="eventModal" onclick="closeEventDetail(event)">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-top">
+                <h3 id="modalTitle">--</h3>
+                <button class="modal-close" onclick="closeEventDetail()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        //  CONFIG
+        // ================================================================
+        const RPC_URL = 'https://testnet-rpc.monad.xyz';
+        const ADDRESSES = {
+            vault:        '0x472d1F17E59A952F2856bd7C5DfA48fc017746bD',
+            eventManager: '0x794FDB692Cc382643a2da6D3036ba1b17BeaEC98',
+            engine:       '0x3605249370eDAcA26dA4F8F8d6eeE9Bb63a45eD9',
+            settlement:   '0x5cDEddbC014C919a16Da9f6061F92fca8E1Cc8Ca'
+        };
+
+        // ================================================================
+        //  ABIs (minimal)
+        // ================================================================
+        const VAULT_ABI = [
+            'function deposit() payable',
+            'function withdraw(uint256)',
+            'function getBalance(address) view returns (uint256, uint256)'
+        ];
+
+        const EM_ABI = [
+            'function createEvent(bytes32, uint40, uint40, uint8, bytes32) returns (bytes32)',
+            'function lockEvent(bytes32)',
+            'function getEvent(bytes32) view returns (uint40, uint40, uint40, uint8, uint8, address, bytes32, uint8, bytes32)',
+            'function isAcceptingBets(bytes32) view returns (bool)',
+            'event EventCreated(bytes32 indexed eventId, uint40 openTime, uint40 closeTime, bytes32 priceFeedId)'
+        ];
+
+        const ENGINE_ABI = [
+            'function placeBet(bytes32, uint8, uint128)',
+            'function claimPayout(bytes32)',
+            'function getOutcomeTotal(bytes32, uint8) view returns (uint128)',
+            'function getUserBet(address, bytes32) view returns (uint128, uint8, uint40, bool)'
+        ];
+
+        const SETTLEMENT_ABI = [
+            'function settleBatch(bytes32[], bytes[], uint8[]) payable',
+            'function voidBatch(bytes32[])'
+        ];
+
+        // ================================================================
+        //  STATE
+        // ================================================================
+        let readProvider = null;
+        let signer = null;
+        let userAddr = null;
+        let currentMode = 'user';
+        let allEvents = [];
+        let refreshTimer = null;
+        let currentDetailId = null;
+        let selectedCategory = 'football';
+        const eventCategories = {}; // eventId -> 'football' | 'basketball' | 'esports'
+
+        // Read-only contract instances
+        let rVault = null, rEM = null, rEngine = null;
+        // Writable contract instances (need signer)
+        let wVault = null, wEM = null, wEngine = null, wSettlement = null;
+
+        // ================================================================
+        //  DEMO EVENTS (fake, frontend-only)
+        // ================================================================
+        function mkDemo(id, cat, tag, yes, no) {
+            return {
+                eventId: id, category: cat,
+                openTime: 0, closeTime: 0, settleTime: 0,
+                status: 1, numOutcomes: 2,
+                creator: '0x0000000000000000000000000000000000000000',
+                tag, winOutcome: 0,
+                yesTotal: BigInt(yes) * 1000000000000000000n,
+                noTotal: BigInt(no) * 1000000000000000000n,
+                userBet: null, isDemo: true
+            };
+        }
+
+        const DEMO_EVENTS = {
+            // Football
+            demo_fb1: mkDemo('demo_fb1', 'football', 'Can Mbappe score this penalty?', 187, 124),
+            demo_fb2: mkDemo('demo_fb2', 'football', 'Will Vinicius get a red card?', 42, 318),
+            demo_fb3: mkDemo('demo_fb3', 'football', 'Corner kick goal?', 89, 201),
+            demo_fb4: mkDemo('demo_fb4', 'football', 'Haaland hat-trick this half?', 67, 445),
+            demo_fb5: mkDemo('demo_fb5', 'football', 'Will Salah score from outside the box?', 155, 178),
+            demo_fb6: mkDemo('demo_fb6', 'football', 'Clean sheet for the home team?', 220, 193),
+            demo_fb7: mkDemo('demo_fb7', 'football', 'VAR overturns this decision?', 301, 112),
+            demo_fb8: mkDemo('demo_fb8', 'football', 'Penalty before halftime?', 134, 267),
+            // Basketball
+            demo_bb1: mkDemo('demo_bb1', 'basketball', 'Will Curry sink both free throws?', 95, 210),
+            demo_bb2: mkDemo('demo_bb2', 'basketball', 'LeBron dunk this quarter?', 278, 156),
+            demo_bb3: mkDemo('demo_bb3', 'basketball', 'Luka triple-double tonight?', 189, 211),
+            demo_bb4: mkDemo('demo_bb4', 'basketball', '3-pointer at the buzzer?', 56, 344),
+            demo_bb5: mkDemo('demo_bb5', 'basketball', 'Will Giannis block this shot?', 167, 143),
+            demo_bb6: mkDemo('demo_bb6', 'basketball', 'Over 110 points this half?', 245, 198),
+            demo_bb7: mkDemo('demo_bb7', 'basketball', 'Jokic assist to end the play?', 132, 178),
+            demo_bb8: mkDemo('demo_bb8', 'basketball', 'Technical foul this quarter?', 88, 312),
+            // Esports
+            demo_es1: mkDemo('demo_es1', 'esports', 'Will s1mple clutch this 1v3?', 156, 143),
+            demo_es2: mkDemo('demo_es2', 'esports', 'First blood under 2 minutes?', 234, 187),
+            demo_es3: mkDemo('demo_es3', 'esports', 'Ace round for T side?', 78, 322),
+            demo_es4: mkDemo('demo_es4', 'esports', 'Baron steal by jungler?', 199, 201),
+            demo_es5: mkDemo('demo_es5', 'esports', 'Faker gets a pentakill?', 45, 455),
+            demo_es6: mkDemo('demo_es6', 'esports', 'Map ends in overtime?', 267, 233),
+            demo_es7: mkDemo('demo_es7', 'esports', 'AWP ace on eco round?', 112, 288),
+            demo_es8: mkDemo('demo_es8', 'esports', 'Dragon soul before 25 min?', 198, 172),
+        };
+        const demoStart = Math.floor(Date.now() / 1000);
+        // Give each demo a random time offset so countdowns don't all sync
+        const demoOffsets = {};
+        for (const id of Object.keys(DEMO_EVENTS)) {
+            demoOffsets[id] = Math.floor(Math.random() * 25);
+        }
+
+        function getDemoCloseTime(demoId) {
+            const now = Math.floor(Date.now() / 1000);
+            const offset = demoOffsets[demoId] || 0;
+            const elapsed = (now - demoStart + offset) % 30;
+            return now + (30 - elapsed);
+        }
+
+        // Check if user is interacting with a dropdown or input
+        function isUserInteracting() {
+            const ae = document.activeElement;
+            if (!ae) return false;
+            const tag = ae.tagName.toLowerCase();
+            return tag === 'select' || tag === 'input';
+        }
+
+        // Simulate live bets every 800ms for all demos
+        setInterval(() => {
+            for (const demo of Object.values(DEMO_EVENTS)) {
+                const amt = BigInt(Math.floor(Math.random() * 3000 + 200)) * 1000000000000000n;
+                if (Math.random() < 0.5) {
+                    demo.yesTotal += amt;
+                } else {
+                    demo.noTotal += amt;
+                }
+            }
+            if (!isUserInteracting()) renderEvents();
+        }, 800);
+
+        // ================================================================
+        //  INIT
+        // ================================================================
+        window.onload = async function() {
+            logAction('MonoDash initialized.', 'sys');
+            setMode('user');
+            updateQuickButtons();
+            try {
+                readProvider = new ethers.JsonRpcProvider(RPC_URL);
+                await readProvider.getBlockNumber();
+                rVault  = new ethers.Contract(ADDRESSES.vault, VAULT_ABI, readProvider);
+                rEM     = new ethers.Contract(ADDRESSES.eventManager, EM_ABI, readProvider);
+                rEngine = new ethers.Contract(ADDRESSES.engine, ENGINE_ABI, readProvider);
+                logAction('RPC connected: ' + RPC_URL, 'success');
+                await loadEvents();
+                // Auto-refresh events every 5s
+                setInterval(() => {
+                    if (!isUserInteracting()) loadEvents();
+                }, 5000);
+            } catch(e) {
+                logAction('RPC offline. Check Monad testnet connection.', 'err');
+            }
+        };
+
+        async function doManualRefresh() {
+            const btn = document.getElementById('refreshBtn');
+            btn.style.opacity = '0.5';
+            btn.disabled = true;
+            logAction('Refreshing events...', 'sys');
+            try {
+                await loadEvents();
+                if (userAddr) await refreshBalance();
+                logAction('Refreshed.', 'success');
+            } catch(e) {}
+            btn.style.opacity = '1';
+            btn.disabled = false;
+        }
+
+        // Override addresses from console
+        window.setAddresses = function(v, em, eng, s) {
+            ADDRESSES.vault = v;
+            ADDRESSES.eventManager = em;
+            ADDRESSES.engine = eng;
+            ADDRESSES.settlement = s;
+            logAction('Addresses updated. Reload page to apply.', 'warn');
+        };
+
+        // ================================================================
+        //  WALLET CONNECTION
+        // ================================================================
+        async function connectWallet() {
+            if (userAddr) {
+                // Disconnect
+                signer = null; userAddr = null;
+                wVault = wEM = wEngine = wSettlement = null;
+                if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+                updateWalletUI(false);
+                logAction('Wallet disconnected.', 'warn');
+                return;
+            }
+
+            if (!window.ethereum) {
+                logAction('MetaMask not detected! Install MetaMask.', 'err');
+                return;
+            }
+
+            try {
+                // Ensure MetaMask is on Monad Testnet
+                const chainIdHex = '0x' + (10143).toString(16);
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: chainIdHex }]
+                    });
+                } catch (switchErr) {
+                    // Chain not added yet — add it
+                    if (switchErr.code === 4902) {
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: chainIdHex,
+                                chainName: 'Monad Testnet',
+                                nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+                                rpcUrls: ['https://testnet-rpc.monad.xyz'],
+                                blockExplorerUrls: ['https://testnet.monadscan.com']
+                            }]
+                        });
+                    } else {
+                        throw switchErr;
+                    }
+                }
+
+                const bp = new ethers.BrowserProvider(window.ethereum);
+                signer = await bp.getSigner();
+                userAddr = await signer.getAddress();
+
+                wVault      = new ethers.Contract(ADDRESSES.vault, VAULT_ABI, signer);
+                wEM         = new ethers.Contract(ADDRESSES.eventManager, EM_ABI, signer);
+                wEngine     = new ethers.Contract(ADDRESSES.engine, ENGINE_ABI, signer);
+                wSettlement = new ethers.Contract(ADDRESSES.settlement, SETTLEMENT_ABI, signer);
+
+                updateWalletUI(true);
+                logAction('Connected: ' + userAddr.slice(0,6) + '...' + userAddr.slice(-4), 'success');
+
+                await refreshAll();
+                refreshTimer = setInterval(refreshAll, 4000);
+            } catch(e) {
+                logAction('Connection failed: ' + shortErr(e), 'err');
+            }
+        }
+
+        function updateWalletUI(connected) {
+            const btn = document.getElementById('walletBtn');
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                btn.classList.add('connected');
+                btn.querySelector('.btn-text').textContent = userAddr.slice(0,4) + '..' + userAddr.slice(-3);
+                status.textContent = 'Monad Testnet (10143)';
+                status.style.color = '#00ff3c';
+            } else {
+                btn.classList.remove('connected');
+                btn.querySelector('.btn-text').textContent = 'CONNECT WALLET';
+                status.textContent = 'Not Connected';
+                status.style.color = '#666';
+                document.getElementById('balanceVal').textContent = '--';
+                document.getElementById('lockedVal').textContent = '--';
+            }
+        }
+
+        // ================================================================
+        //  MODE TOGGLE
+        // ================================================================
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-user').forEach(el => el.style.display = mode === 'user' ? '' : 'none');
+            document.querySelectorAll('.mode-admin').forEach(el => el.style.display = mode === 'admin' ? '' : 'none');
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            const ab = document.querySelector('.mode-btn[data-mode="' + mode + '"]');
+            if (ab) ab.classList.add('active');
+            renderEvents();
+        }
+
+        // ================================================================
+        //  CATEGORY SELECTION
+        // ================================================================
+        const QUICK_TAGS = {
+            football:   ['Goal?', 'Corner?', 'Pass?', 'Card?'],
+            basketball: ['3-Pointer?', 'Dunk?', 'Block?', 'Steal?'],
+            esports:    ['Clutch?', 'First Blood?', 'Ace?', 'MVP?']
+        };
+
+        function selectCategory(cat) {
+            selectedCategory = cat;
+            document.querySelectorAll('.category-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.cat === cat);
+            });
+            const sel = document.getElementById('eventCategory');
+            if (sel) sel.value = cat;
+            updateQuickButtons();
+            renderEvents();
+        }
+
+        function updateQuickButtons() {
+            const cat = document.getElementById('eventCategory')?.value || 'football';
+            const tags = QUICK_TAGS[cat] || [];
+            const container = document.getElementById('quickButtons');
+            if (!container) return;
+            container.innerHTML = tags.map(t =>
+                `<button class="btn btn-outline" style="width:auto; padding:5px 10px; font-size:10px;" onclick="quickCreate('${t}')">${t}</button>`
+            ).join('');
+        }
+
+        // ================================================================
+        //  REFRESH
+        // ================================================================
+        async function refreshAll() {
+            try { await Promise.all([refreshBalance(), loadEvents(), updatePing()]); } catch(e) {}
+        }
+
+        async function manualRefresh() {
+            logAction('Refreshing...', 'sys');
+            await refreshAll();
+            logAction('Refreshed.', 'success');
+        }
+
+        async function refreshBalance() {
+            if (!userAddr || !rVault) return;
+            try {
+                const [avail, locked] = await rVault.getBalance(userAddr);
+                document.getElementById('balanceVal').textContent = fmtMon(avail);
+                document.getElementById('lockedVal').textContent = fmtMon(locked);
+            } catch(e) {
+                // silent
+            }
+        }
+
+        async function updatePing() {
+            if (!readProvider) return;
+            const t0 = performance.now();
+            try {
+                await readProvider.getBlockNumber();
+                const ms = Math.round(performance.now() - t0);
+                document.getElementById('pingVal').textContent = ms + ' ms';
+            } catch(e) {}
+        }
+
+        // ================================================================
+        //  LOAD EVENTS
+        // ================================================================
+        // ---- localStorage-backed event registry { eventId: category } ----
+        const STORAGE_KEY = 'monodash_events';
+
+        // Migrate old array format and seed existing events
+        (function migrateAndSeed() {
+            let data = {};
+            try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch {}
+            // Migrate old array format
+            if (Array.isArray(data)) {
+                const obj = {};
+                for (const id of data) obj[id] = 'football';
+                data = obj;
+            }
+            // Also check old key
+            try {
+                const old = JSON.parse(localStorage.getItem('monodash_event_ids') || '[]');
+                if (Array.isArray(old)) {
+                    for (const id of old) { if (!data[id]) data[id] = 'football'; }
+                    localStorage.removeItem('monodash_event_ids');
+                }
+            } catch {}
+            // Seed known on-chain events
+            const seeds = {
+                '0x96538ae53d824f8a9884c797a4a69be63b55a9b9ae4c6b9dd0b5d53a53dc539f': 'basketball',
+                '0x1d9df78b064d8abe982dae415d61b5ba52ac43676e6e2f6c1160e8ff2b8891e2': 'football',
+                '0x5088ec64f102224bcbfe6de9233dedbc52bf3796d87d77bc00fd014353ea3fb2': 'football',
+                '0x0eee6593bb257bdf07c583c904597aa9c3e80e95323ee814169ac3b8e200bd21': 'football',
+                '0x26f0407f9b4e79f355f633f78c1a459ca73b728cae1110ac60e813312e1a6515': 'football',
+                '0xf0c6175c7e95ac6ebda7269fc4603052923257c4e7a42eb5d3b04c2d13bc812b': 'football',
+                '0x8820bb2e27aa2c1b2253eaf4a9a09f4a6e4c8117112648774ce0d14f83cb5aee': 'football',
+                '0x4bec0c362ef6757e11012553fa4db113677525c7d920d9b8f39b6c29a763361a': 'basketball',
+                '0x3c8210cce391a5b4498259e46cc752545dfccae24d2c8fd16a7ef3b6a7473b37': 'basketball',
+                '0x4aa45c83b2a0701540c2f693af436a1568d50a4b035de18092b7aaa39b170dc9': 'basketball',
+                '0x0286044c83f5d1f5dd45e15fb0f3b1b69ab3e06567466a0ff37e72ae383925ff': 'basketball',
+                '0x02568ff944abb6ea768c6b53478f24f5f7b869418690f7e8093e65ce748a9f81': 'esports',
+                '0x911f5ec62d842b0590f043c3f5d5b5d0b6f12f9f9f4485c8ab2c325072c644cf': 'esports',
+                '0xb9e311a69ccbf9f134e676526cade462ba45461a9fa6b48102660fd227dddeff': 'esports',
+                '0x5019df8272e792da35c420e8736f7a3dc2c3d51ab0e7c4f75c18b44077c4ae51': 'esports'
+            };
+            for (const [id, cat] of Object.entries(seeds)) {
+                if (!data[id]) data[id] = cat;
+            }
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        })();
+
+        function getSavedEvents() {
+            try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+            catch { return {}; }
+        }
+
+        function getSavedEventIds() {
+            return Object.keys(getSavedEvents());
+        }
+
+        function getEventCategory(eventId) {
+            return getSavedEvents()[eventId] || 'football';
+        }
+
+        function saveEvent(id, category) {
+            const data = getSavedEvents();
+            if (!data[id]) {
+                data[id] = category || 'football';
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            }
+        }
+
+        // Cache of last known good data per event, so failed fetches don't wipe events
+        const eventCache = {};
+
+        async function loadEvents() {
+            if (!rEM) return;
+            try {
+                const ids = getSavedEventIds();
+                if (ids.length === 0) { renderEvents(); return; }
+
+                const promises = ids.map(async (eventId) => {
+                    try {
+                        const info = await rEM['getEvent(bytes32)'](eventId);
+                        if (Number(info[3]) === 0) return null;
+                        const [yesT, noT] = await Promise.all([
+                            rEngine.getOutcomeTotal(eventId, 0).catch(() => 0n),
+                            rEngine.getOutcomeTotal(eventId, 1).catch(() => 0n)
+                        ]);
+
+                        let userBet = null;
+                        if (userAddr) {
+                            try {
+                                const b = await rEngine.getUserBet(userAddr, eventId);
+                                if (b[0] > 0n) {
+                                    userBet = { amount: b[0], outcome: Number(b[1]), ts: Number(b[2]), settled: b[3] };
+                                }
+                            } catch(e) {}
+                        }
+
+                        const evt = {
+                            eventId,
+                            openTime: Number(info[0]),
+                            closeTime: Number(info[1]),
+                            settleTime: Number(info[2]),
+                            status: Number(info[3]),
+                            numOutcomes: Number(info[4]),
+                            creator: info[5],
+                            tag: decodeTag(info[6]),
+                            winOutcome: Number(info[7]),
+                            yesTotal: yesT,
+                            noTotal: noT,
+                            userBet
+                        };
+                        eventCache[eventId] = evt;
+                        return evt;
+                    } catch(e) {
+                        // Return cached version if fetch fails
+                        return eventCache[eventId] || null;
+                    }
+                });
+
+                const results = await Promise.all(promises);
+                allEvents = results.filter(e => e !== null).reverse();
+                document.getElementById('eventsCount').textContent = allEvents.length;
+                renderEvents();
+            } catch(e) {
+                // silent
+            }
+        }
+
+        // Delayed reload — waits for chain state to propagate after a tx
+        async function reloadAfterAction() {
+            await new Promise(r => setTimeout(r, 2000));
+            await loadEvents();
+        }
+
+        // ================================================================
+        //  RENDER EVENTS
+        // ================================================================
+        function renderEvents() {
+            if (currentMode === 'user') {
+                renderUserEvents();
+            } else {
+                renderAdminEvents();
+            }
+            refreshModalIfOpen();
+        }
+
+        function getDisplayEvents() {
+            for (const d of Object.values(DEMO_EVENTS)) {
+                const ct = getDemoCloseTime(d.eventId);
+                d.closeTime = ct;
+                d.openTime = ct - 30;
+            }
+            const catPrefixes = { football: 'demo_fb', basketball: 'demo_bb', esports: 'demo_es' };
+            const prefix = catPrefixes[selectedCategory] || '';
+            const demos = Object.values(DEMO_EVENTS).filter(d => d.eventId.startsWith(prefix));
+            const catEvents = allEvents.filter(e => getEventCategory(e.eventId) === selectedCategory);
+            return [...demos, ...catEvents];
+        }
+
+        function renderUserEvents() {
+            const c = document.getElementById('userEventFeed');
+            const evts = getDisplayEvents();
+            if (!evts.length) {
+                c.innerHTML = '<div style="padding:30px; color:#555; text-align:center; font-size:12px;">No events yet</div>';
+                document.getElementById('eventCount').textContent = '0 events';
+                return;
+            }
+            let html = '';
+            for (const evt of evts) html += renderUserItem(evt);
+            c.innerHTML = html;
+            document.getElementById('eventCount').textContent = evts.length + ' events';
+        }
+
+        function renderAdminEvents() {
+            const c = document.getElementById('adminEventFeed');
+            const evts = getDisplayEvents();
+            if (!evts.length) {
+                c.innerHTML = '<div style="padding:30px; color:#555; text-align:center; font-size:12px;">No events yet</div>';
+                document.getElementById('adminEventCount').textContent = '0 events';
+                return;
+            }
+            let html = '';
+            for (const evt of evts) html += renderAdminItem(evt);
+            c.innerHTML = html;
+            document.getElementById('adminEventCount').textContent = evts.length + ' events';
+        }
+
+        function renderUserItem(evt) {
+            const now = Math.floor(Date.now() / 1000);
+            const si = statusInfo(evt, now);
+            const pool = evt.yesTotal + evt.noTotal;
+            const yp = pool > 0n ? Number(evt.yesTotal * 100n / pool) : 50;
+            const demoTag = evt.isDemo ? '<span class="live-pulse" style="color:#ff5555;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">&#9679; LIVE</span>' : '';
+
+            let actions = '';
+            // OPEN and window active
+            if (evt.status === 1 && now < evt.closeTime) {
+                if (!evt.userBet) {
+                    const ps = pendingSide[evt.eventId];
+                    const yesC = ps === 0 ? ' side-selected' : (ps === 1 ? ' side-dim' : '');
+                    const noC = ps === 1 ? ' side-selected' : (ps === 0 ? ' side-dim' : '');
+                    const diVis = ps !== undefined ? '' : 'display:none;';
+                    actions = `<div class="bet-row" onclick="event.stopPropagation()">
+                        <input type="number" id="ba_${evt.eventId}" value="0.1" step="0.01" min="0.001" max="100">
+                        <span style="font-size:10px;color:#888;">MON</span>
+                        <button class="abtn abtn-yes${yesC}" onclick="selectSide('${evt.eventId}',0,this)">YES</button>
+                        <button class="abtn abtn-no${noC}" onclick="selectSide('${evt.eventId}',1,this)">NO</button>
+                        <button class="abtn abtn-dashit" onclick="doBet('${evt.eventId}')" style="${diVis}animation-delay:-${Date.now()%7000}ms;" id="dc_${evt.eventId}">DASH IT</button>
+                    </div>`;
+                } else {
+                    actions = `<div class="user-bet-info">Your dash: <b style="color:${evt.userBet.outcome===0?'#00ff3c':'#ff4444'}">${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON</div>`;
+                }
+            }
+            // OPEN but expired
+            else if (evt.status === 1 && now >= evt.closeTime) {
+                if (evt.userBet) {
+                    actions = `<div class="user-bet-info">Your dash: <b>${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON (window closed)</div>`;
+                }
+            }
+            // LOCKED
+            else if (evt.status === 2) {
+                if (evt.userBet && !evt.userBet.settled) {
+                    actions = `<div class="user-bet-info">Your dash: <b>${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON (awaiting result)</div>`;
+                }
+            }
+            // SETTLED or VOIDED
+            else if (evt.status === 3 || evt.status === 4) {
+                if (evt.userBet && !evt.userBet.settled) {
+                    actions = `<div class="bet-row" onclick="event.stopPropagation()">
+                        <span style="font-size:11px;color:#aaa;">Your dash: ${evt.userBet.outcome===0?'YES':'NO'} ${fmtMon(evt.userBet.amount)} MON</span>
+                        <button class="abtn abtn-claim" onclick="doClaim('${evt.eventId}')">CLAIM</button>
+                    </div>`;
+                } else if (evt.userBet && evt.userBet.settled) {
+                    actions = `<div class="user-bet-info" style="color:#666;">Claimed</div>`;
+                }
+            }
+
+            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` : '';
+            return `<div class="event-item evt-flex" onclick="openEventDetail('${evt.eventId}')" style="cursor:pointer;">
+                <div class="evt-top">
+                    <div class="team-info">
+                        <h4>${esc(evt.tag)}${demoTag}</h4>
+                        <div class="match-meta">
+                            <span class="badge ${si.cls}"${badgeAttr}>${si.label}</span>
+                            <span>Pool: ${fmtMon(pool)} MON</span>
+                            ${evt.status===3 ? '<span>Winner: '+(evt.winOutcome===0?'YES':'NO')+'</span>' : ''}
+                        </div>
+                    </div>
+                    <div style="text-align:right;font-size:10px;color:#666;">
+                        <div>YES: ${fmtMon(evt.yesTotal)}</div>
+                        <div>NO: ${fmtMon(evt.noTotal)}</div>
+                    </div>
+                </div>
+                <div class="pool-wrapper"><div class="pool-fill" style="width:${yp}%"></div></div>
+                ${actions}
+            </div>`;
+        }
+
+        function renderAdminItem(evt) {
+            const now = Math.floor(Date.now() / 1000);
+            const si = statusInfo(evt, now);
+            const pool = evt.yesTotal + evt.noTotal;
+            const demoTag = evt.isDemo ? '<span class="live-pulse" style="color:#ff5555;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle;">&#9679; LIVE</span>' : '';
+
+            let actions = '';
+            if (evt.status === 1) {
+                const expired = now >= evt.closeTime;
+                actions = `<div class="bet-row" onclick="event.stopPropagation()">
+                    ${expired ? '<button class="abtn abtn-lock" onclick="doLock(\''+evt.eventId+'\')">LOCK</button>' : '<span style="font-size:10px;color:#666;">Dashing open...</span>'}
+                    <button class="abtn abtn-void" onclick="doVoid('${evt.eventId}')">VOID</button>
+                </div>`;
+            } else if (evt.status === 2) {
+                let opts = '';
+                const selOut = pendingOutcome[evt.eventId] || 0;
+                for (let i = 0; i < evt.numOutcomes; i++) {
+                    const lbl = evt.numOutcomes === 2 ? (i===0?'YES':'NO') : 'Outcome '+i;
+                    opts += '<option value="'+i+'"'+(i===selOut?' selected':'')+'>'+lbl+' wins</option>';
+                }
+                actions = `<div class="bet-row" onclick="event.stopPropagation()">
+                    <select id="oc_${evt.eventId}" onchange="pendingOutcome['${evt.eventId}']=parseInt(this.value)">${opts}</select>
+                    <button class="abtn abtn-settle" onclick="doSettle('${evt.eventId}')">SETTLE</button>
+                    <button class="abtn abtn-void" onclick="doVoid('${evt.eventId}')">VOID</button>
+                </div>`;
+            } else if (evt.status === 3) {
+                actions = `<div class="user-bet-info" style="color:#8888ff;">Settled - Winner: ${evt.winOutcome===0?'YES':'NO'}</div>`;
+            } else if (evt.status === 4) {
+                actions = `<div class="user-bet-info" style="color:#ff4444;">Voided</div>`;
+            }
+
+            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` : '';
+            return `<div class="event-item evt-flex" onclick="openEventDetail('${evt.eventId}')" style="cursor:pointer;">
+                <div class="evt-top">
+                    <div class="team-info">
+                        <h4>${esc(evt.tag)}${demoTag}</h4>
+                        <div class="match-meta">
+                            <span class="badge ${si.cls}"${badgeAttr}>${si.label}</span>
+                            <span>Pool: ${fmtMon(pool)} MON</span>
+                        </div>
+                    </div>
+                    <div style="font-size:10px;color:#666;font-family:monospace;">${evt.isDemo ? 'DEMO' : shortId(evt.eventId)}</div>
+                </div>
+                ${actions}
+            </div>`;
+        }
+
+        function statusInfo(evt, now) {
+            switch(evt.status) {
+                case 1: {
+                    const rem = evt.closeTime - now;
+                    if (rem > 0) {
+                        const urgent = rem <= 5;
+                        return {
+                            cls: 'badge-open' + (urgent ? ' badge-urgent' : ''),
+                            label: 'OPEN ' + rem + 's',
+                            countdown: true,
+                            closeTime: evt.closeTime
+                        };
+                    }
+                    return { cls: 'badge-open', label: 'OPEN (expired)' };
+                }
+                case 2: return { cls: 'badge-locked', label: 'LOCKED' };
+                case 3: return { cls: 'badge-settled', label: 'SETTLED' };
+                case 4: return { cls: 'badge-voided', label: 'VOIDED' };
+                default: return { cls: '', label: '?' };
+            }
+        }
+
+        // Live countdown ticker - updates every second
+        setInterval(() => {
+            const badges = document.querySelectorAll('[data-close-time]');
+            const now = Math.floor(Date.now() / 1000);
+            badges.forEach(badge => {
+                const close = parseInt(badge.dataset.closeTime);
+                const rem = close - now;
+                if (rem > 0) {
+                    badge.textContent = 'OPEN ' + rem + 's';
+                    if (rem <= 5) {
+                        badge.classList.add('badge-urgent');
+                    } else {
+                        badge.classList.remove('badge-urgent');
+                    }
+                } else {
+                    badge.textContent = 'OPEN (expired)';
+                    badge.classList.remove('badge-urgent');
+                    badge.removeAttribute('data-close-time');
+                }
+            });
+        }, 1000);
+
+        // ================================================================
+        //  EVENT DETAIL MODAL
+        // ================================================================
+        function openEventDetail(eventId) {
+            let evt;
+            if (DEMO_EVENTS[eventId]) {
+                const ct = getDemoCloseTime(eventId);
+                DEMO_EVENTS[eventId].closeTime = ct;
+                DEMO_EVENTS[eventId].openTime = ct - 30;
+                evt = DEMO_EVENTS[eventId];
+            } else {
+                evt = allEvents.find(e => e.eventId === eventId);
+            }
+            if (!evt) return;
+            currentDetailId = eventId;
+            document.getElementById('modalTitle').textContent = evt.tag;
+            renderModalBody(evt);
+            document.getElementById('eventModal').classList.add('open');
+        }
+
+        function closeEventDetail(e) {
+            if (e && e.target !== e.currentTarget) return;
+            currentDetailId = null;
+            document.getElementById('eventModal').classList.remove('open');
+        }
+
+        function refreshModalIfOpen() {
+            if (!currentDetailId || isUserInteracting()) return;
+            let evt;
+            if (DEMO_EVENTS[currentDetailId]) {
+                const ct = getDemoCloseTime(currentDetailId);
+                DEMO_EVENTS[currentDetailId].closeTime = ct;
+                DEMO_EVENTS[currentDetailId].openTime = ct - 30;
+                evt = DEMO_EVENTS[currentDetailId];
+            } else {
+                evt = allEvents.find(e => e.eventId === currentDetailId);
+            }
+            if (!evt) { closeEventDetail(); return; }
+            document.getElementById('modalTitle').textContent = evt.tag;
+            renderModalBody(evt);
+        }
+
+        function renderModalBody(evt) {
+            const now = Math.floor(Date.now() / 1000);
+            const si = statusInfo(evt, now);
+            const pool = evt.yesTotal + evt.noTotal;
+            const yp = pool > 0n ? Number(evt.yesTotal * 10000n / pool) / 100 : 50;
+            const np = pool > 0n ? (100 - yp) : 50;
+
+            // Meta
+            const badgeAttr = si.countdown ? ` data-close-time="${evt.closeTime}"` : '';
+            let meta = `<div class="modal-meta">
+                <span class="badge ${si.cls}"${badgeAttr}>${si.label}</span>
+                <span>${shortId(evt.eventId)}</span>
+            </div>`;
+
+            // Winner banner
+            let winner = '';
+            if (evt.status === 3) {
+                const wc = evt.winOutcome === 0 ? 'var(--success)' : 'var(--danger)';
+                winner = `<div class="modal-winner" style="color:${wc}">
+                    Winner: ${evt.winOutcome === 0 ? 'YES' : 'NO'}
+                </div>`;
+            } else if (evt.status === 4) {
+                winner = `<div class="modal-winner" style="color:var(--danger);">VOIDED</div>`;
+            }
+
+            // Tug-of-war graph
+            const yesW = pool > 0n ? yp : 50;
+            const noW = pool > 0n ? np : 50;
+            const yesLabel = yesW >= 12 ? `${yp.toFixed(1)}%` : '';
+            const noLabel = noW >= 12 ? `${np.toFixed(1)}%` : '';
+            let graph = `<div class="tug-container">
+                <div class="tug-labels">
+                    <span class="yes-label">YES</span>
+                    <span class="no-label">NO</span>
+                </div>
+                <div class="tug-bar">
+                    <div class="tug-yes" style="width:${yesW}%"><span>${yesLabel}</span></div>
+                    <div class="tug-no" style="width:${noW}%"><span>${noLabel}</span></div>
+                </div>
+                <div class="tug-amounts">
+                    <span>${fmtMon(evt.yesTotal)} MON</span>
+                    <span>${fmtMon(evt.noTotal)} MON</span>
+                </div>
+            </div>`;
+
+            // Stats
+            let stats = `<div class="modal-stats">
+                <div class="modal-stat yes-stat">
+                    <div class="ms-label">YES Pool</div>
+                    <div class="ms-value">${fmtMon(evt.yesTotal)}</div>
+                </div>
+                <div class="modal-stat total-stat">
+                    <div class="ms-label">Total Pool</div>
+                    <div class="ms-value">${fmtMon(pool)}</div>
+                </div>
+                <div class="modal-stat no-stat">
+                    <div class="ms-label">NO Pool</div>
+                    <div class="ms-value">${fmtMon(evt.noTotal)}</div>
+                </div>
+            </div>`;
+
+            // Actions (same logic as renderUserItem/renderAdminItem combined)
+            let actions = '';
+            if (currentMode === 'user') {
+                if (evt.status === 1 && now < evt.closeTime) {
+                    if (!evt.userBet) {
+                        const mps = pendingSide[evt.eventId];
+                        const myesC = mps === 0 ? ' side-selected' : (mps === 1 ? ' side-dim' : '');
+                        const mnoC = mps === 1 ? ' side-selected' : (mps === 0 ? ' side-dim' : '');
+                        const mdiVis = mps !== undefined ? '' : 'display:none;';
+                        actions = `<div class="modal-actions"><div class="bet-row" style="justify-content:center;">
+                            <input type="number" id="mba_${evt.eventId}" value="0.1" step="0.01" min="0.001" max="100">
+                            <span style="font-size:10px;color:#888;">MON</span>
+                            <button class="abtn abtn-yes${myesC}" onclick="event.stopPropagation();selectSide('${evt.eventId}',0,this)">YES</button>
+                            <button class="abtn abtn-no${mnoC}" onclick="event.stopPropagation();selectSide('${evt.eventId}',1,this)">NO</button>
+                            <button class="abtn abtn-dashit" onclick="event.stopPropagation();doBet('${evt.eventId}')" style="${mdiVis}animation-delay:-${Date.now()%7000}ms;" id="mdc_${evt.eventId}">DASH IT</button>
+                        </div></div>`;
+                    } else {
+                        actions = `<div class="modal-actions"><div class="user-bet-info" style="text-align:center;">Your dash: <b style="color:${evt.userBet.outcome===0?'#00ff3c':'#ff4444'}">${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON</div></div>`;
+                    }
+                } else if (evt.status === 1 && now >= evt.closeTime && evt.userBet) {
+                    actions = `<div class="modal-actions"><div class="user-bet-info" style="text-align:center;">Your dash: <b>${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON (window closed)</div></div>`;
+                } else if (evt.status === 2 && evt.userBet && !evt.userBet.settled) {
+                    actions = `<div class="modal-actions"><div class="user-bet-info" style="text-align:center;">Your dash: <b>${evt.userBet.outcome===0?'YES':'NO'}</b> ${fmtMon(evt.userBet.amount)} MON (awaiting result)</div></div>`;
+                } else if ((evt.status === 3 || evt.status === 4) && evt.userBet && !evt.userBet.settled) {
+                    actions = `<div class="modal-actions"><div class="bet-row" style="justify-content:center;">
+                        <span style="font-size:11px;color:#aaa;">Your dash: ${evt.userBet.outcome===0?'YES':'NO'} ${fmtMon(evt.userBet.amount)} MON</span>
+                        <button class="abtn abtn-claim" onclick="event.stopPropagation();doClaim('${evt.eventId}')">CLAIM</button>
+                    </div></div>`;
+                } else if (evt.userBet && evt.userBet.settled) {
+                    actions = `<div class="modal-actions"><div class="user-bet-info" style="text-align:center;color:#666;">Claimed</div></div>`;
+                }
+            } else {
+                if (evt.status === 1) {
+                    const expired = now >= evt.closeTime;
+                    actions = `<div class="modal-actions"><div class="bet-row" style="justify-content:center;">
+                        ${expired ? '<button class="abtn abtn-lock" onclick="event.stopPropagation();doLock(\''+evt.eventId+'\')">LOCK</button>' : '<span style="font-size:10px;color:#666;">Dashing open...</span>'}
+                        <button class="abtn abtn-void" onclick="event.stopPropagation();doVoid('${evt.eventId}')">VOID</button>
+                    </div></div>`;
+                } else if (evt.status === 2) {
+                    let opts = '';
+                    const mSelOut = pendingOutcome[evt.eventId] || 0;
+                    for (let i = 0; i < evt.numOutcomes; i++) {
+                        const lbl = evt.numOutcomes === 2 ? (i===0?'YES':'NO') : 'Outcome '+i;
+                        opts += '<option value="'+i+'"'+(i===mSelOut?' selected':'')+'>'+lbl+' wins</option>';
+                    }
+                    actions = `<div class="modal-actions"><div class="bet-row" style="justify-content:center;">
+                        <select id="moc_${evt.eventId}" onchange="pendingOutcome['${evt.eventId}']=parseInt(this.value)">${opts}</select>
+                        <button class="abtn abtn-settle" onclick="event.stopPropagation();doSettle('${evt.eventId}')">SETTLE</button>
+                        <button class="abtn abtn-void" onclick="event.stopPropagation();doVoid('${evt.eventId}')">VOID</button>
+                    </div></div>`;
+                }
+            }
+
+            document.getElementById('modalBody').innerHTML = meta + winner + graph + stats + actions;
+        }
+
+        // ================================================================
+        //  VAULT OPERATIONS
+        // ================================================================
+        async function doDeposit() {
+            if (!wVault) { logAction('Connect wallet first!', 'err'); return; }
+            const amt = document.getElementById('vaultAmount').value;
+            if (!amt || parseFloat(amt) <= 0) { logAction('Invalid amount.', 'err'); return; }
+            try {
+                logAction('Depositing ' + amt + ' MON...', 'sys');
+                const tx = await wVault.deposit({ value: ethers.parseEther(amt) });
+                await tx.wait();
+                logAction('Deposited ' + amt + ' MON!', 'success');
+                await refreshBalance();
+            } catch(e) { logAction('Deposit failed: ' + shortErr(e), 'err'); }
+        }
+
+        async function doWithdraw() {
+            if (!wVault) { logAction('Connect wallet first!', 'err'); return; }
+            const amt = document.getElementById('vaultAmount').value;
+            if (!amt || parseFloat(amt) <= 0) { logAction('Invalid amount.', 'err'); return; }
+            try {
+                logAction('Withdrawing ' + amt + ' MON...', 'sys');
+                const tx = await wVault.withdraw(ethers.parseEther(amt));
+                await tx.wait();
+                logAction('Withdrew ' + amt + ' MON!', 'success');
+                await refreshBalance();
+            } catch(e) { logAction('Withdraw failed: ' + shortErr(e), 'err'); }
+        }
+
+        // ================================================================
+        //  ADMIN: CREATE EVENT
+        // ================================================================
+        async function doCreateEvent() {
+            if (!wEM) { logAction('Connect wallet first!', 'err'); return; }
+            const tag = document.getElementById('eventTag').value || 'Event';
+            const dur = parseInt(document.getElementById('eventDuration').value);
+            const outs = parseInt(document.getElementById('eventOutcomes').value);
+            const category = document.getElementById('eventCategory').value;
+            if (dur < 30 || dur > 60) { logAction('Duration must be 30-60s.', 'err'); return; }
+            if (outs < 2 || outs > 10) { logAction('Outcomes must be 2-10.', 'err'); return; }
+
+            try {
+                logAction('Creating event: ' + tag + ' [' + category + '] (' + dur + 's)...', 'sys');
+                const tagBytes = ethers.encodeBytes32String(tag.slice(0, 31));
+
+                // Use current wall-clock time with large buffer so MetaMask confirmation delay doesn't cause "open in past"
+                const nowSec = Math.floor(Date.now() / 1000);
+                const openTime = nowSec + 60;
+                const closeTime = openTime + dur;
+
+                const tx = await wEM.createEvent(tagBytes, openTime, closeTime, outs, ethers.ZeroHash, { gasLimit: 300000n });
+                const receipt = await tx.wait();
+                logAction('Event created: ' + tag, 'success');
+
+                // Extract eventId from tx receipt and save to localStorage with category
+                for (const log of receipt.logs) {
+                    try {
+                        const parsed = rEM.interface.parseLog({ topics: log.topics, data: log.data });
+                        if (parsed && parsed.name === 'EventCreated') {
+                            saveEvent(parsed.args[0], category);
+                        }
+                    } catch(e) {}
+                }
+
+                await reloadAfterAction();
+            } catch(e) { logAction('Create failed: ' + shortErr(e), 'err'); }
+        }
+
+        function quickCreate(tag) {
+            document.getElementById('eventTag').value = tag;
+        }
+
+        // ================================================================
+        //  ADMIN: LOCK / SETTLE / VOID
+        // ================================================================
+        async function doLock(eventId) {
+            if (eventId.startsWith('demo_')) { logAction('Demo event - no real transactions.', 'sys'); return; }
+            if (!wEM) { logAction('Connect wallet first!', 'err'); return; }
+            try {
+                logAction('Locking event...', 'sys');
+                const tx = await wEM.lockEvent(eventId);
+                await tx.wait();
+                logAction('Event locked!', 'success');
+                await reloadAfterAction();
+            } catch(e) { logAction('Lock failed: ' + shortErr(e), 'err'); }
+        }
+
+        async function doSettle(eventId) {
+            if (eventId.startsWith('demo_')) { logAction('Demo event - no real transactions.', 'sys'); return; }
+            if (!wSettlement || !wEM) { logAction('Connect wallet first!', 'err'); return; }
+            try {
+                // 1. Check current status
+                const info = await rEM['getEvent(bytes32)'](eventId);
+                const status = Number(info[3]);
+
+                // 2. If still OPEN, lock first
+                if (status === 1) {
+                    logAction('Event still OPEN, locking first...', 'sys');
+                    const lockTx = await wEM.lockEvent(eventId);
+                    await lockTx.wait();
+                    logAction('Event locked.', 'success');
+                } else if (status !== 2) {
+                    logAction('Event is not in a settleable state (status: ' + status + ')', 'err');
+                    return;
+                }
+
+                // 3. Settle
+                const outcome = pendingOutcome[eventId] !== undefined ? pendingOutcome[eventId] : 0;
+                logAction('Settling (outcome: ' + (outcome === 0 ? 'YES' : 'NO') + ')...', 'sys');
+                // Gas limit must be explicit: eth_estimateGas underestimates because
+                // the try/catch in settleBatch makes the tx "succeed" even when settleOne
+                // runs out of gas (aggregateForSettlement reads 32 cold storage slots).
+                const tx = await wSettlement.settleBatch([eventId], [], [outcome], { gasLimit: 500000n });
+                await tx.wait();
+
+                // 4. Verify settlement actually worked
+                const after = await rEM['getEvent(bytes32)'](eventId);
+                const newStatus = Number(after[3]);
+                if (newStatus === 3) {
+                    logAction('Event settled! Winner: ' + (outcome === 0 ? 'YES' : 'NO'), 'success');
+                } else {
+                    logAction('Settlement tx confirmed but event not settled! Check settler authorization.', 'err');
+                }
+                await reloadAfterAction();
+            } catch(e) { logAction('Settle failed: ' + shortErr(e), 'err'); }
+        }
+
+        async function doVoid(eventId) {
+            if (eventId.startsWith('demo_')) { logAction('Demo event - no real transactions.', 'sys'); return; }
+            if (!wSettlement) { logAction('Connect wallet first!', 'err'); return; }
+            try {
+                // Auto-lock if still OPEN
+                const info = await rEM['getEvent(bytes32)'](eventId);
+                const status = Number(info[3]);
+                if (status === 1) {
+                    logAction('Locking event first...', 'sys');
+                    try {
+                        const lockTx = await wEM.lockEvent(eventId);
+                        await lockTx.wait();
+                    } catch(e) {
+                        // Lock might fail if window still open, void can handle OPEN too
+                    }
+                }
+
+                logAction('Voiding event...', 'sys');
+                const tx = await wSettlement.voidBatch([eventId]);
+                await tx.wait();
+
+                // Verify
+                const after = await rEM['getEvent(bytes32)'](eventId);
+                const newStatus = Number(after[3]);
+                if (newStatus === 4) {
+                    logAction('Event voided!', 'success');
+                } else {
+                    logAction('Void tx confirmed but event not voided! Check authorization.', 'err');
+                }
+                await reloadAfterAction();
+            } catch(e) { logAction('Void failed: ' + shortErr(e), 'err'); }
+        }
+
+        // ================================================================
+        //  USER: BET / CLAIM
+        // ================================================================
+        const pendingSide = {}; // eventId -> 0 or 1
+        const dashitShaken = {}; // eventId -> true (shake played)
+        const pendingOutcome = {}; // eventId -> selected outcome index for settle
+
+        function selectSide(eventId, outcome, btn) {
+            const row = btn.closest('.bet-row');
+            const dc = row.querySelector('.abtn-dashit');
+
+            // Toggle: same button again → deselect, hide DASH IT
+            if (pendingSide[eventId] === outcome) {
+                delete pendingSide[eventId];
+                delete dashitShaken[eventId];
+                row.querySelectorAll('.abtn-yes, .abtn-no').forEach(b => {
+                    b.classList.remove('side-selected', 'side-dim');
+                });
+                if (dc) dc.style.display = 'none';
+                return;
+            }
+
+            pendingSide[eventId] = outcome;
+            // Highlight selected, dim the other
+            row.querySelectorAll('.abtn-yes, .abtn-no').forEach(b => {
+                b.classList.remove('side-selected', 'side-dim');
+            });
+            btn.classList.add('side-selected');
+            const other = outcome === 0
+                ? row.querySelector('.abtn-no')
+                : row.querySelector('.abtn-yes');
+            if (other) other.classList.add('side-dim');
+            // Show DASH IT button + one-time shake
+            if (dc) {
+                dc.style.display = '';
+                if (!dashitShaken[eventId]) {
+                    dashitShaken[eventId] = true;
+                    dc.classList.add('dashit-shake');
+                    setTimeout(() => dc.classList.remove('dashit-shake'), 400);
+                }
+            }
+        }
+
+        async function doBet(eventId) {
+            if (eventId.startsWith('demo_')) { logAction('Demo event - no real transactions.', 'sys'); return; }
+            if (!wEngine) { logAction('Connect wallet first!', 'err'); return; }
+            const outcome = pendingSide[eventId];
+            if (outcome === undefined) { logAction('Select YES or NO first.', 'err'); return; }
+            const inp = document.getElementById('ba_' + eventId) || document.getElementById('mba_' + eventId);
+            const amt = inp ? inp.value : '0.1';
+            if (!amt || parseFloat(amt) <= 0) { logAction('Invalid amount.', 'err'); return; }
+            try {
+                logAction('Placing dash: ' + (outcome===0?'YES':'NO') + ' ' + amt + ' MON...', 'sys');
+                const tx = await wEngine.placeBet(eventId, outcome, ethers.parseEther(amt));
+                await tx.wait();
+                logAction('Dash placed!', 'success');
+                await refreshAll();
+            } catch(e) { logAction('Dash failed: ' + shortErr(e), 'err'); }
+        }
+
+        async function doClaim(eventId) {
+            if (eventId.startsWith('demo_')) { logAction('Demo event - no real transactions.', 'sys'); return; }
+            if (!wEngine) { logAction('Connect wallet first!', 'err'); return; }
+            try {
+                logAction('Claiming payout...', 'sys');
+                const tx = await wEngine.claimPayout(eventId);
+                await tx.wait();
+                logAction('Payout claimed!', 'success');
+                // Mark as claimed locally so button doesn't flicker
+                const evt = allEvents.find(e => e.eventId === eventId);
+                if (evt && evt.userBet) evt.userBet.settled = true;
+                if (eventCache[eventId] && eventCache[eventId].userBet) eventCache[eventId].userBet.settled = true;
+                renderEvents();
+                await reloadAfterAction();
+            } catch(e) { logAction('Claim failed: ' + shortErr(e), 'err'); }
+        }
+
+        async function claimAll() {
+            if (!wEngine) { logAction('Connect wallet first!', 'err'); return; }
+            let count = 0;
+            for (const evt of allEvents) {
+                if (evt.userBet && !evt.userBet.settled && (evt.status === 3 || evt.status === 4)) {
+                    try {
+                        const tx = await wEngine.claimPayout(evt.eventId);
+                        await tx.wait();
+                        evt.userBet.settled = true;
+                        if (eventCache[evt.eventId] && eventCache[evt.eventId].userBet) eventCache[evt.eventId].userBet.settled = true;
+                        count++;
+                    } catch(e) {}
+                }
+            }
+            if (count > 0) {
+                logAction('Claimed ' + count + ' payouts!', 'success');
+                renderEvents();
+                await reloadAfterAction();
+            } else {
+                logAction('Nothing to claim.', 'warn');
+            }
+        }
+
+        // ================================================================
+        //  UTILITIES
+        // ================================================================
+        function logAction(msg, type) {
+            const time = new Date().toLocaleTimeString('tr-TR', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = 'log-line';
+            let cc = 'log-sys';
+            if (type === 'success') cc = 'log-success';
+            if (type === 'warn') cc = 'log-warn';
+            if (type === 'err') cc = 'log-err';
+            entry.innerHTML = '<span class="log-time">[' + time + ']</span><span class="log-msg ' + cc + '">' + msg + '</span>';
+            const box = document.getElementById('consoleLog');
+            box.appendChild(entry);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function shortErr(e) {
+            if (e.reason) return e.reason;
+            if (e.shortMessage) return e.shortMessage;
+            const m = e.message || String(e);
+            const match = m.match(/reason="([^"]+)"/);
+            if (match) return match[1];
+            return m.length > 100 ? m.slice(0, 100) + '...' : m;
+        }
+
+        function fmtMon(wei) {
+            try {
+                const s = ethers.formatEther(wei);
+                const n = parseFloat(s);
+                if (n === 0) return '0';
+                return n % 1 === 0 ? n.toFixed(1) : parseFloat(n.toFixed(4)).toString();
+            } catch { return '0'; }
+        }
+
+        function decodeTag(b32) {
+            try {
+                const d = ethers.decodeBytes32String(b32);
+                return d || b32.slice(0, 10) + '...';
+            } catch { return b32.slice(0, 10) + '...'; }
+        }
+
+        function shortId(b32) {
+            return b32.slice(0, 8) + '..' + b32.slice(-6);
+        }
+
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+    </script>
+</body>
+</html>

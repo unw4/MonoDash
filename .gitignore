@@ -1,0 +1,13 @@
+# Compiler files
+cache/
+out/
+
+# Broadcast logs (deployment artifacts)
+broadcast/
+
+# Docs
+docs/
+
+# Dotenv file
+.env
+.DS_Store
