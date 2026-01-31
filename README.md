@@ -1,5 +1,11 @@
 # MonoDash
 
+YASAL UYARI VE SORUMLULUK REDDİ
+İşbu uygulama/platform, yalnızca hackathon kapsamında geliştirilmiş deneysel bir projedir.
+Bu proje halka açık bir ticari ürün veya hizmet değildir ve nihai kullanıcı kullanımı için tasarlanmamıştır. Sunulan tüm fonksiyonlar, veriler ve işlemler sadece gösterim, test ve değerlendirme (PoC - Proof of Concept) amaçlıdır.
+Geliştirici ekip, bu platformun kullanımı, işlevselliği veya içeriği ile ilgili doğrudan veya dolaylı hiçbir sorumluluk kabul etmez.
+
+
 A decentralized micro-event betting platform built on Monad testnet. Leverages Monad's 400ms block time and parallel transaction execution to deliver ultra-fast betting experiences.
 
 ## Features
